@@ -11,7 +11,8 @@ const initialSubjects = [
 ];
 
 export default function App() {
-  const [subjects, setSubjects] = useState(initialSubjects);
+  const [subjects, setSubjects] = useState([]); // empty initially
+  const [loading, setLoading] = useState(true); // loading state
 
   useEffect(() => {
     async function loadData() {
@@ -22,6 +23,8 @@ export default function App() {
         }
       } catch (err) {
         console.error("Failed to load data:", err);
+      } finally {
+        setLoading(false); // ✅ stop loading
       }
     }
     loadData();
@@ -43,17 +46,30 @@ export default function App() {
   const calculateStats = (subj) => {
     const { conducted, absent } = subj;
     const attended = conducted - absent;
-    if (conducted === 0) return { current: "-", skips: "-", projected: "-" };
+
+    if (conducted === 0) {
+      return { current: "-", skips: "-", projected: "-", needed: "-" };
+    }
 
     const current = (attended / conducted) * 100;
+
+    // ✅ max skips while staying >=75%
     const numerator = 0.25 * conducted - absent;
     const maxSkips = numerator < 0 ? 0 : Math.floor(numerator / 0.75);
+
     const projected = (attended / (conducted + maxSkips)) * 100;
+
+    // ❌ if below 75%, find classes needed
+    let needed = 0;
+    if (current < 75) {
+      needed = Math.ceil((0.75 * conducted - attended) / 0.25);
+    }
 
     return {
       current: current.toFixed(2) + "%",
       skips: maxSkips,
       projected: projected.toFixed(2) + "%",
+      needed: needed > 0 ? needed : 0,
     };
   };
 
@@ -66,6 +82,16 @@ export default function App() {
       console.error(err);
     }
   };
+
+  // ✅ Loading screen
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-gray-100">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-600"></div>
+        <span className="ml-4 text-lg font-semibold text-gray-700">Loading attendance...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-6">
@@ -144,7 +170,11 @@ export default function App() {
                     </div>
                   </td>
                   <td className="border px-2 py-1">{stats.current}</td>
-                  <td className="border px-2 py-1">{stats.skips}</td>
+                  <td className={`border px-2 py-1 ${stats.needed > 0 ? "text-red-600 font-bold" : "text-green-600 font-bold"}`}>
+                    {stats.needed > 0
+                      ? `${stats.needed}`  
+                      : `${stats.skips}`}    
+                  </td>
                   <td className="border px-2 py-1">{stats.projected}</td>
                 </tr>
               );
@@ -215,7 +245,12 @@ export default function App() {
 
               <div className="mt-3 space-y-1 text-sm">
                 <p><span className="font-semibold">Current %:</span> {stats.current}</p>
-                <p><span className="font-semibold">Max Skips:</span> {stats.skips}</p>
+                <p><span className="font-semibold">Status:</span>{" "}
+                  {stats.needed > 0 ? (
+                    <span className="text-red-600 font-bold">Attend {stats.needed} classes</span>
+                  ) : (
+                    <span className="text-green-600 font-bold">Can skip {stats.skips} classes</span>
+                  )}</p>
                 <p><span className="font-semibold">Projected %:</span> {stats.projected}</p>
               </div>
             </div>
